@@ -42,13 +42,23 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "AIからの応答が空でした。" }, { status: 500 });
     }
 
-    // Parse JSON from response
-    const jsonMatch = textContent.text.match(/\[[\s\S]*\]/);
+    // Parse JSON from response - strip markdown code fences if present
+    let rawText = textContent.text.trim();
+    rawText = rawText.replace(/^```(?:json)?\s*\n?/i, "").replace(/\n?```\s*$/i, "").trim();
+
+    const jsonMatch = rawText.match(/\[[\s\S]*\]/);
     if (!jsonMatch) {
       return NextResponse.json({ error: "AIの応答をパースできませんでした。", raw: textContent.text }, { status: 500 });
     }
 
-    const results = JSON.parse(jsonMatch[0]);
+    let results;
+    try {
+      results = JSON.parse(jsonMatch[0]);
+    } catch {
+      // Try fixing common issues: trailing commas, etc.
+      const cleaned = jsonMatch[0].replace(/,\s*([\]}])/g, "$1");
+      results = JSON.parse(cleaned);
+    }
     return NextResponse.json({ results });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : "不明なエラーが発生しました";

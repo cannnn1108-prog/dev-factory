@@ -57,28 +57,48 @@ ${personaBlock}
 * ${platformAdvice}
 * ハッシュタグは3〜5個提案
 
-出力フォーマット（JSON）:
-[
-  {
-    "title": "案1: 〇〇型",
-    "hook": "フック文",
-    "body": "本文",
-    "cta": "CTA文（不要の場合は空文字）",
-    "hashtags": ["#タグ1", "#タグ2"],
-    "recommended": true または false,
-    "score": 1〜10の整数（バズりやすさスコア）,
-    "reason": "この案をおすすめする理由（1〜2文）"
-  }
-]
-
-3案のうち最もバズりやすいと判断した1案だけ "recommended": true にしてください。
-評価基準:
+各案を以下の基準でスコアリングし、最もバズりやすい1案を選んでください:
 * フックの引き力（思わず読んでしまうか）
 * 共感・議論を呼ぶか（リプやRTが来そうか）
 * 具体性があるか（抽象論で終わっていないか）
 * 保存されやすいか（あとで見返したくなるか）
 
-JSONのみ出力してください。説明文は不要です。`;
+出力フォーマット（厳密なJSON配列）:
+[
+  {
+    "title": "案1: 体験ベース",
+    "hook": "フック文",
+    "body": "本文",
+    "cta": "CTA文",
+    "hashtags": ["#タグ1", "#タグ2"],
+    "recommended": false,
+    "score": 7,
+    "reason": "スコアの根拠"
+  },
+  {
+    "title": "案2: 問題提起",
+    "hook": "フック文",
+    "body": "本文",
+    "cta": "CTA文",
+    "hashtags": ["#タグ1", "#タグ2"],
+    "recommended": true,
+    "score": 9,
+    "reason": "この案が最もバズりやすい理由"
+  },
+  {
+    "title": "案3: 結論先出し",
+    "hook": "フック文",
+    "body": "本文",
+    "cta": "",
+    "hashtags": ["#タグ1", "#タグ2"],
+    "recommended": false,
+    "score": 6,
+    "reason": "スコアの根拠"
+  }
+]
+
+重要: recommendedはboolean型(true/false)、scoreは整数(1-10)で出力。3案中1案だけrecommended:trueにすること。
+JSONのみ出力してください。説明文やマークダウンは絶対に含めないでください。`;
 }
 
 export function buildRewritePrompt(
