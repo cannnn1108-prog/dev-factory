@@ -3,9 +3,11 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Send, Hash, Image, Clock, Copy, Check, Loader2, Save } from "lucide-react";
 import GlowCard from "@/components/ui/GlowCard";
+import { useProfile } from "@/lib/profile-context";
 
 export default function PostCreatePage() {
   const router = useRouter();
+  const { profileId } = useProfile();
   const [content, setContent] = useState("");
   const [hashtags, setHashtags] = useState("");
   const [copied, setCopied] = useState(false);
@@ -28,7 +30,6 @@ export default function PostCreatePage() {
   const handleSaveDraft = () => {
     if (!content) return;
     const text = getFullText();
-    // Save to buzz_drafts (legacy)
     const drafts = JSON.parse(localStorage.getItem("buzz_drafts") || "[]");
     drafts.unshift({
       id: Date.now().toString(),
@@ -39,7 +40,6 @@ export default function PostCreatePage() {
     });
     localStorage.setItem("buzz_drafts", JSON.stringify(drafts));
 
-    // Also save to buzz_saved_posts (shared with schedule page)
     const savedPosts = JSON.parse(localStorage.getItem("buzz_saved_posts") || "[]");
     savedPosts.unshift({
       id: Date.now().toString(),
@@ -71,7 +71,6 @@ export default function PostCreatePage() {
       </div>
 
       <GlowCard>
-        {/* Content Area */}
         <div className="relative">
           <textarea
             value={content}
@@ -103,7 +102,6 @@ export default function PostCreatePage() {
           </div>
         </div>
 
-        {/* Hashtags */}
         <div className="mt-4">
           <div className="flex items-center gap-2 mb-2">
             <Hash className="w-4 h-4 text-neon-purple" />
@@ -118,7 +116,6 @@ export default function PostCreatePage() {
           />
         </div>
 
-        {/* Actions */}
         <div className="flex items-center justify-between mt-6 pt-4 border-t border-neon-indigo/10">
           <div className="flex gap-2">
             <button className="p-2 rounded-lg bg-dark-800 hover:bg-dark-600 transition-all" title="画像を追加（準備中）">
@@ -161,7 +158,7 @@ export default function PostCreatePage() {
                   const res = await fetch("/api/post-to-x", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ content: fullText }),
+                    body: JSON.stringify({ content: fullText, profileId }),
                   });
                   const data = await res.json();
                   if (!res.ok) {
@@ -187,14 +184,12 @@ export default function PostCreatePage() {
         </div>
       </GlowCard>
 
-      {/* Post Error */}
       {postError && (
         <div className="px-4 py-3 rounded-xl bg-red-500/10 border border-red-500/20 text-sm text-red-400">
           {postError}
         </div>
       )}
 
-      {/* Preview */}
       {content && (
         <GlowCard>
           <h2 className="text-sm font-semibold text-gray-400 mb-3">プレビュー</h2>
