@@ -1,10 +1,9 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
-import { useSearchParams } from "next/navigation";
-import { Calendar, Clock, Edit3, Trash2, Plus, X, Loader2, Send, RefreshCw, AlertCircle, FileText, ChevronDown, ChevronUp } from "lucide-react";
+import { Calendar, Clock, Edit3, Trash2, Plus, X, Loader2, Send, RefreshCw, AlertCircle, Save, ChevronDown, ChevronUp } from "lucide-react";
 import GlowCard from "@/components/ui/GlowCard";
 import { useProfile } from "@/lib/profile-context";
-import { fetchScheduledPosts, createScheduledPost, updateScheduledPost, deleteScheduledPost, fetchSavedPosts } from "@/lib/db";
+import { fetchScheduledPosts, createScheduledPost, updateScheduledPost, deleteScheduledPost } from "@/lib/db";
 
 const statusColors: Record<string, string> = {
   draft: "bg-gray-500/20 text-gray-400",
@@ -34,12 +33,8 @@ interface Post {
 
 interface SavedPost {
   id: string;
-  hook: string;
-  body: string;
-  cta: string | null;
-  hashtags: string[];
-  theme: string;
-  created_at: string;
+  content: string;
+  savedAt: string;
 }
 
 // Get current JST date/time parts
@@ -55,16 +50,17 @@ function getJSTNow() {
 }
 
 export default function SchedulePage() {
-  const searchParams = useSearchParams();
-  const { profileId, loading: profileLoading } = useProfile();
+  const { profileId, currentProfile, loading: profileLoading } = useProfile();
   const [posts, setPosts] = useState<Post[]>([]);
-  const [savedPosts, setSavedPosts] = useState<SavedPost[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
-  const [showSaved, setShowSaved] = useState(false);
   const [newContent, setNewContent] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [postingId, setPostingId] = useState<string | null>(null);
+
+  // Saved posts
+  const [savedPosts, setSavedPosts] = useState<SavedPost[]>([]);
+  const [showSaved, setShowSaved] = useState(false);
 
   // Date/time picker state (JST)
   const [selYear, setSelYear] = useState("");
@@ -73,14 +69,21 @@ export default function SchedulePage() {
   const [selHour, setSelHour] = useState("");
   const [selMinute, setSelMinute] = useState("");
 
-  // Read content from URL params (from generate/ai-generate pages)
+  // Load saved posts from localStorage
   useEffect(() => {
-    const content = searchParams.get("content");
-    if (content) {
-      setNewContent(decodeURIComponent(content));
+    const saved = JSON.parse(localStorage.getItem("buzz_saved_posts") || "[]");
+    setSavedPosts(saved);
+  }, []);
+
+  // Check for draft content from other pages (ai-generate, generate)
+  useEffect(() => {
+    const draft = localStorage.getItem("buzz_schedule_draft");
+    if (draft) {
+      setNewContent(draft);
       setShowForm(true);
+      localStorage.removeItem("buzz_schedule_draft");
     }
-  }, [searchParams]);
+  }, []);
 
   // Initialize with current JST time when form opens
   useEffect(() => {
@@ -107,25 +110,21 @@ export default function SchedulePage() {
     }
   }, [profileId]);
 
-  const loadSavedPosts = useCallback(async () => {
-    if (!profileId) return;
-    try {
-      const data = await fetchSavedPosts(profileId);
-      setSavedPosts(data);
-    } catch (e) {
-      console.error(e);
-    }
-  }, [profileId]);
-
   useEffect(() => {
     loadPosts();
   }, [loadPosts]);
 
-  useEffect(() => {
-    if (showSaved && savedPosts.length === 0) {
-      loadSavedPosts();
-    }
-  }, [showSaved, savedPosts.length, loadSavedPosts]);
+  const handleSelectSaved = (post: SavedPost) => {
+    setNewContent(post.content);
+    setShowForm(true);
+    setShowSaved(false);
+  };
+
+  const handleDeleteSaved = (id: string) => {
+    const updated = savedPosts.filter((p) => p.id !== id);
+    setSavedPosts(updated);
+    localStorage.setItem("buzz_saved_posts", JSON.stringify(updated));
+  };
 
   const handleAdd = async () => {
     if (!newContent.trim() || !profileId) return;
@@ -148,13 +147,6 @@ export default function SchedulePage() {
     } catch (e) {
       console.error(e);
     }
-  };
-
-  const handleUseSaved = (saved: SavedPost) => {
-    const text = saved.hook + "\n\n" + saved.body + (saved.cta ? "\n\n" + saved.cta : "") + (saved.hashtags.length > 0 ? "\n\n" + saved.hashtags.join(" ") : "");
-    setNewContent(text.slice(0, 280));
-    setShowForm(true);
-    setShowSaved(false);
   };
 
   const handleDelete = async (id: string) => {
@@ -192,7 +184,7 @@ export default function SchedulePage() {
       const res = await fetch("/api/post-to-x", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ content: post.content.slice(0, 280) }),
+        body: JSON.stringify({ content: post.content.slice(0, 280), profileId }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -227,6 +219,7 @@ export default function SchedulePage() {
 
   const scheduledCount = posts.filter((p) => p.status === "scheduled").length;
   const postedCount = posts.filter((p) => p.status === "posted").length;
+  const accountName = currentProfile?.x_username || currentProfile?.display_name || "";
 
   const selectClass = "px-3 py-2 rounded-xl bg-dark-800 border border-neon-indigo/20 text-white text-sm focus:outline-none focus:border-neon-indigo/50";
 
@@ -239,66 +232,62 @@ export default function SchedulePage() {
             投稿をスケジュールして最適なタイミングで自動投稿
           </p>
           <div className="flex gap-4 mt-2">
+            {accountName && <span className="text-xs text-neon-purple">{accountName}</span>}
             <span className="text-xs text-neon-blue">{scheduledCount}件 予約中</span>
             <span className="text-xs text-green-400">{postedCount}件 投稿済み</span>
           </div>
         </div>
-        <div className="flex gap-2">
-          <button
-            onClick={() => setShowSaved(!showSaved)}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl border border-neon-indigo/20 text-gray-300 text-sm hover:bg-dark-600 transition-all"
-          >
-            <FileText className="w-4 h-4" />
-            保存済みから選ぶ
-          </button>
-          <button
-            onClick={() => setShowForm(!showForm)}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-neon-blue to-neon-purple text-white text-sm font-medium hover:shadow-neon-glow transition-all"
-          >
-            {showForm ? <X className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
-            {showForm ? "閉じる" : "新規作成"}
-          </button>
-        </div>
+        <button
+          onClick={() => setShowForm(!showForm)}
+          className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-neon-blue to-neon-purple text-white text-sm font-medium hover:shadow-neon-glow transition-all"
+        >
+          {showForm ? <X className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
+          {showForm ? "閉じる" : "新規作成"}
+        </button>
       </div>
-
-      {/* Saved Posts Section */}
-      {showSaved && (
-        <GlowCard>
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-sm font-semibold text-white flex items-center gap-2">
-              <FileText className="w-4 h-4 text-neon-purple" />
-              保存済み投稿から選ぶ
-            </h2>
-            <button onClick={() => setShowSaved(false)} className="p-1 rounded-lg hover:bg-dark-600 transition-all">
-              <X className="w-4 h-4 text-gray-400" />
-            </button>
-          </div>
-          {savedPosts.length === 0 ? (
-            <p className="text-sm text-gray-500 text-center py-4">保存済みの投稿がありません</p>
-          ) : (
-            <div className="space-y-3 max-h-80 overflow-y-auto">
-              {savedPosts.map((saved) => (
-                <button
-                  key={saved.id}
-                  onClick={() => handleUseSaved(saved)}
-                  className="w-full text-left p-3 rounded-xl bg-dark-800 border border-neon-indigo/10 hover:border-neon-indigo/30 transition-all"
-                >
-                  <p className="text-sm text-gray-200 line-clamp-2">{saved.hook}</p>
-                  <div className="flex items-center gap-2 mt-2">
-                    <span className="text-[10px] text-neon-purple bg-neon-purple/10 px-2 py-0.5 rounded">{saved.theme}</span>
-                    <span className="text-[10px] text-gray-500">{new Date(saved.created_at).toLocaleDateString("ja-JP", { timeZone: "Asia/Tokyo" })}</span>
-                  </div>
-                </button>
-              ))}
-            </div>
-          )}
-        </GlowCard>
-      )}
 
       {showForm && (
         <GlowCard>
           <h2 className="text-sm font-semibold text-white mb-4">新しい予約投稿</h2>
           <div className="space-y-4">
+            {/* Saved posts picker */}
+            {savedPosts.length > 0 && (
+              <div>
+                <button
+                  onClick={() => setShowSaved(!showSaved)}
+                  className="flex items-center gap-2 text-xs text-neon-purple hover:text-neon-purple/80 transition-all"
+                >
+                  <Save className="w-3 h-3" />
+                  保存済み投稿から選ぶ ({savedPosts.length}件)
+                  {showSaved ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                </button>
+                {showSaved && (
+                  <div className="mt-2 space-y-2 max-h-60 overflow-y-auto">
+                    {savedPosts.map((sp) => (
+                      <div
+                        key={sp.id}
+                        className="flex items-start gap-2 p-3 rounded-lg bg-dark-800 border border-neon-indigo/10 hover:border-neon-purple/30 transition-all"
+                      >
+                        <button
+                          onClick={() => handleSelectSaved(sp)}
+                          className="flex-1 text-left text-xs text-gray-300 line-clamp-2 hover:text-white transition-all"
+                        >
+                          {sp.content.slice(0, 100)}{sp.content.length > 100 ? "..." : ""}
+                        </button>
+                        <button
+                          onClick={() => handleDeleteSaved(sp.id)}
+                          className="p-1 rounded hover:bg-red-900/30 transition-all shrink-0"
+                          title="削除"
+                        >
+                          <Trash2 className="w-3 h-3 text-gray-500 hover:text-red-400" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
             <div className="relative">
               <textarea
                 value={newContent}
@@ -358,7 +347,7 @@ export default function SchedulePage() {
       )}
 
       <div className="space-y-4">
-        {posts.length === 0 && !showForm && !showSaved && (
+        {posts.length === 0 && (
           <div className="text-center py-12 text-gray-500">
             <Calendar className="w-8 h-8 mx-auto mb-2 opacity-30" />
             <p className="text-sm">予約投稿がありません</p>
