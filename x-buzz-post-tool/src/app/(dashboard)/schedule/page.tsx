@@ -31,15 +31,45 @@ interface Post {
   created_at: string;
 }
 
+// Get current JST date/time parts
+function getJSTNow() {
+  const now = new Date(Date.now() + 9 * 60 * 60 * 1000);
+  return {
+    year: now.getUTCFullYear().toString(),
+    month: (now.getUTCMonth() + 1).toString(),
+    day: now.getUTCDate().toString(),
+    hour: now.getUTCHours().toString(),
+    minute: (Math.ceil(now.getUTCMinutes() / 5) * 5 % 60).toString(),
+  };
+}
+
 export default function SchedulePage() {
   const { profileId, loading: profileLoading } = useProfile();
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [newContent, setNewContent] = useState("");
-  const [newDate, setNewDate] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [postingId, setPostingId] = useState<string | null>(null);
+
+  // Date/time picker state (JST)
+  const [selYear, setSelYear] = useState("");
+  const [selMonth, setSelMonth] = useState("");
+  const [selDay, setSelDay] = useState("");
+  const [selHour, setSelHour] = useState("");
+  const [selMinute, setSelMinute] = useState("");
+
+  // Initialize with current JST time when form opens
+  useEffect(() => {
+    if (showForm && !selYear) {
+      const jst = getJSTNow();
+      setSelYear(jst.year);
+      setSelMonth(jst.month);
+      setSelDay(jst.day);
+      setSelHour(jst.hour);
+      setSelMinute(jst.minute);
+    }
+  }, [showForm, selYear]);
 
   const loadPosts = useCallback(async () => {
     if (!profileId) return;
@@ -61,12 +91,22 @@ export default function SchedulePage() {
   const handleAdd = async () => {
     if (!newContent.trim() || !profileId) return;
     try {
-      const status = newDate ? "scheduled" : "draft";
-      const scheduledAt = newDate ? new Date(newDate).toISOString() : new Date().toISOString();
+      // Build JST date string and convert to UTC ISO
+      const hasDate = selYear && selMonth && selDay && selHour && selMinute;
+      const status = hasDate ? "scheduled" : "draft";
+      let scheduledAt = new Date().toISOString();
+      if (hasDate) {
+        const jstDate = new Date(
+          Number(selYear), Number(selMonth) - 1, Number(selDay),
+          Number(selHour), Number(selMinute), 0
+        );
+        // Convert JST to UTC by subtracting 9 hours
+        scheduledAt = new Date(jstDate.getTime() - 9 * 60 * 60 * 1000).toISOString();
+      }
       const created = await createScheduledPost(profileId, newContent.trim(), scheduledAt, status);
       setPosts((prev) => [created, ...prev].sort((a, b) => new Date(a.scheduled_at).getTime() - new Date(b.scheduled_at).getTime()));
       setNewContent("");
-      setNewDate("");
+      setSelYear(""); setSelMonth(""); setSelDay(""); setSelHour(""); setSelMinute("");
       setShowForm(false);
     } catch (e) {
       console.error(e);
@@ -146,6 +186,8 @@ export default function SchedulePage() {
   const scheduledCount = posts.filter((p) => p.status === "scheduled").length;
   const postedCount = posts.filter((p) => p.status === "posted").length;
 
+  const selectClass = "px-3 py-2 rounded-xl bg-dark-800 border border-neon-indigo/20 text-white text-sm focus:outline-none focus:border-neon-indigo/50";
+
   return (
     <div className="max-w-4xl mx-auto space-y-8">
       <div className="flex items-center justify-between">
@@ -185,22 +227,45 @@ export default function SchedulePage() {
                 {charLimit - newContent.length}
               </span>
             </div>
-            <div className="flex items-center gap-4">
-              <div className="flex-1">
-                <label className="block text-xs text-gray-400 mb-1">投稿日時</label>
-                <input
-                  type="datetime-local"
-                  value={newDate}
-                  onChange={(e) => setNewDate(e.target.value)}
-                  className="w-full px-4 py-2 rounded-xl bg-dark-800 border border-neon-indigo/20 text-white focus:outline-none focus:border-neon-indigo/50 transition-all"
-                />
+            <div>
+              <label className="block text-xs text-gray-400 mb-2">投稿日時（日本時間）</label>
+              <div className="flex items-center gap-2 flex-wrap">
+                <select value={selYear} onChange={(e) => setSelYear(e.target.value)} className={selectClass}>
+                  {[0, 1].map((offset) => {
+                    const y = new Date().getFullYear() + offset;
+                    return <option key={y} value={y}>{y}年</option>;
+                  })}
+                </select>
+                <select value={selMonth} onChange={(e) => setSelMonth(e.target.value)} className={selectClass}>
+                  {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
+                    <option key={m} value={m}>{m}月</option>
+                  ))}
+                </select>
+                <select value={selDay} onChange={(e) => setSelDay(e.target.value)} className={selectClass}>
+                  {Array.from({ length: 31 }, (_, i) => i + 1).map((d) => (
+                    <option key={d} value={d}>{d}日</option>
+                  ))}
+                </select>
+                <select value={selHour} onChange={(e) => setSelHour(e.target.value)} className={selectClass}>
+                  {Array.from({ length: 24 }, (_, i) => i).map((h) => (
+                    <option key={h} value={h}>{String(h).padStart(2, "0")}時</option>
+                  ))}
+                </select>
+                <span className="text-gray-400">:</span>
+                <select value={selMinute} onChange={(e) => setSelMinute(e.target.value)} className={selectClass}>
+                  {Array.from({ length: 12 }, (_, i) => i * 5).map((m) => (
+                    <option key={m} value={m}>{String(m).padStart(2, "0")}分</option>
+                  ))}
+                </select>
               </div>
+            </div>
+            <div className="flex justify-end">
               <button
                 onClick={handleAdd}
                 disabled={!newContent.trim()}
-                className="mt-5 px-6 py-2 rounded-xl bg-gradient-to-r from-neon-blue to-neon-purple text-white text-sm font-medium hover:shadow-neon-glow transition-all disabled:opacity-50"
+                className="px-6 py-2 rounded-xl bg-gradient-to-r from-neon-blue to-neon-purple text-white text-sm font-medium hover:shadow-neon-glow transition-all disabled:opacity-50"
               >
-                {newDate ? "予約する" : "下書き保存"}
+                {selYear && selMonth && selDay && selHour && selMinute ? "予約する" : "下書き保存"}
               </button>
             </div>
           </div>
@@ -242,11 +307,11 @@ export default function SchedulePage() {
                 <div className="flex items-center gap-4 mt-3 text-xs text-gray-500">
                   <span className="flex items-center gap-1">
                     <Calendar className="w-3 h-3" />
-                    {new Date(post.scheduled_at).toLocaleDateString("ja-JP")}
+                    {new Date(post.scheduled_at).toLocaleDateString("ja-JP", { timeZone: "Asia/Tokyo" })}
                   </span>
                   <span className="flex items-center gap-1">
                     <Clock className="w-3 h-3" />
-                    {new Date(post.scheduled_at).toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" })}
+                    {new Date(post.scheduled_at).toLocaleTimeString("ja-JP", { timeZone: "Asia/Tokyo", hour: "2-digit", minute: "2-digit" })}
                   </span>
                   <button
                     onClick={() => handleStatusToggle(post.id, post.status)}
@@ -257,7 +322,7 @@ export default function SchedulePage() {
                   </button>
                   {post.posted_at && (
                     <span className="text-green-400/60">
-                      投稿: {new Date(post.posted_at).toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" })}
+                      投稿: {new Date(post.posted_at).toLocaleTimeString("ja-JP", { timeZone: "Asia/Tokyo", hour: "2-digit", minute: "2-digit" })}
                     </span>
                   )}
                 </div>
