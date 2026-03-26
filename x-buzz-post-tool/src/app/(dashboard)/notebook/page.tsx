@@ -1,33 +1,61 @@
 "use client";
 
-import { useState } from "react";
-import { Plus, Trash2, Lightbulb, Sparkles } from "lucide-react";
+import { useState, useEffect, useCallback } from "react";
+import { Plus, Trash2, Lightbulb, Sparkles, Loader2 } from "lucide-react";
 import GlowCard from "@/components/ui/GlowCard";
-import { useLocalStorage } from "@/lib/use-local-storage";
-import { PostIdea } from "@/types";
-import { dummyIdeas } from "@/lib/dummy-data";
+import { useProfile } from "@/lib/profile-context";
+import { fetchIdeas, createIdea, deleteIdea } from "@/lib/db";
+
+interface Idea {
+  id: string;
+  theme: string;
+  memo: string | null;
+  created_at: string;
+}
 
 export default function NotebookPage() {
-  const [ideas, setIdeas] = useLocalStorage<PostIdea[]>("buzz_ideas", dummyIdeas);
+  const { profileId, loading: profileLoading } = useProfile();
+  const [ideas, setIdeas] = useState<Idea[]>([]);
+  const [loading, setLoading] = useState(true);
   const [newTheme, setNewTheme] = useState("");
   const [newMemo, setNewMemo] = useState("");
 
-  const handleAdd = () => {
-    if (!newTheme.trim()) return;
-    const idea: PostIdea = {
-      id: Date.now().toString(),
-      theme: newTheme.trim(),
-      memo: newMemo.trim(),
-      createdAt: new Date().toISOString(),
-    };
-    setIdeas((prev) => [idea, ...prev]);
-    setNewTheme("");
-    setNewMemo("");
+  const loadIdeas = useCallback(async () => {
+    if (!profileId) return;
+    setLoading(true);
+    try {
+      const data = await fetchIdeas(profileId);
+      setIdeas(data);
+    } catch (e) { console.error(e); }
+    finally { setLoading(false); }
+  }, [profileId]);
+
+  useEffect(() => { loadIdeas(); }, [loadIdeas]);
+
+  const handleAdd = async () => {
+    if (!newTheme.trim() || !profileId) return;
+    try {
+      const created = await createIdea(profileId, newTheme.trim(), newMemo.trim());
+      setIdeas((prev) => [created, ...prev]);
+      setNewTheme("");
+      setNewMemo("");
+    } catch (e) { console.error(e); }
   };
 
-  const handleDelete = (id: string) => {
-    setIdeas((prev) => prev.filter((i) => i.id !== id));
+  const handleDelete = async (id: string) => {
+    try {
+      await deleteIdea(id);
+      setIdeas((prev) => prev.filter((i) => i.id !== id));
+    } catch (e) { console.error(e); }
   };
+
+  if (profileLoading || loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[50vh]">
+        <Loader2 className="w-6 h-6 text-neon-indigo animate-spin" />
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-4xl mx-auto space-y-8">
@@ -36,7 +64,6 @@ export default function NotebookPage() {
         <p className="text-sm text-gray-400 mt-1">バズ投稿のアイデアをストックして管理</p>
       </div>
 
-      {/* Add New Idea */}
       <GlowCard>
         <h2 className="text-sm font-semibold text-white mb-4 flex items-center gap-2">
           <Lightbulb className="w-4 h-4 text-yellow-400" /> 新しいアイデア
@@ -68,7 +95,6 @@ export default function NotebookPage() {
         </div>
       </GlowCard>
 
-      {/* Ideas List */}
       <div className="space-y-3">
         {ideas.length === 0 && (
           <div className="text-center py-12 text-gray-500">
@@ -83,7 +109,7 @@ export default function NotebookPage() {
                 <h3 className="text-sm font-medium text-white">{idea.theme}</h3>
                 {idea.memo && <p className="text-xs text-gray-400 mt-1">{idea.memo}</p>}
                 <p className="text-[10px] text-gray-600 mt-2">
-                  {new Date(idea.createdAt).toLocaleDateString("ja-JP")}
+                  {new Date(idea.created_at).toLocaleDateString("ja-JP")}
                 </p>
               </div>
               <div className="flex gap-2">
