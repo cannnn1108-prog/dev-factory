@@ -1,15 +1,24 @@
 "use client";
 
-import { useState } from "react";
-import { Save, UserCircle } from "lucide-react";
+import { Save, UserCircle, Check } from "lucide-react";
 import GlowCard from "@/components/ui/GlowCard";
+import { useLocalStorage } from "@/lib/use-local-storage";
+import { Persona } from "@/types";
 import { dummyPersona } from "@/lib/dummy-data";
+import { useState } from "react";
 
 export default function PersonaPage() {
-  const [persona, setPersona] = useState(dummyPersona);
+  const [persona, setPersona] = useLocalStorage<Persona>("buzz_persona", dummyPersona);
+  const [saved, setSaved] = useState(false);
 
   const updateField = (field: string, value: string) => {
     setPersona((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const handleSave = () => {
+    // Already persisted via useLocalStorage, just show feedback
+    setSaved(true);
+    setTimeout(() => setSaved(false), 2000);
   };
 
   return (
@@ -19,8 +28,12 @@ export default function PersonaPage() {
           <h1 className="text-2xl font-bold text-white">バズキャラ設定</h1>
           <p className="text-sm text-gray-400 mt-1">投稿の人格・文体を設定して一貫性を保つ</p>
         </div>
-        <button className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-neon-blue to-neon-purple text-white text-sm font-medium hover:shadow-neon-glow transition-all">
-          <Save className="w-4 h-4" /> 保存
+        <button
+          onClick={handleSave}
+          className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-neon-blue to-neon-purple text-white text-sm font-medium hover:shadow-neon-glow transition-all"
+        >
+          {saved ? <Check className="w-4 h-4" /> : <Save className="w-4 h-4" />}
+          {saved ? "保存しました" : "保存"}
         </button>
       </div>
 

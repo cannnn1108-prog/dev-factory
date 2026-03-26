@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -15,6 +16,8 @@ import {
   BarChart3,
   HelpCircle,
   AlertCircle,
+  Menu,
+  X,
 } from "lucide-react";
 
 const mainNav = [
@@ -34,11 +37,20 @@ const subNav = [
   { label: "セットアップガイド", href: "/guide", icon: HelpCircle },
 ];
 
-function NavLink({ item, isActive }: { item: { label: string; href: string; icon: React.ElementType }; isActive: boolean }) {
+function NavLink({
+  item,
+  isActive,
+  onClick,
+}: {
+  item: { label: string; href: string; icon: React.ElementType };
+  isActive: boolean;
+  onClick?: () => void;
+}) {
   const Icon = item.icon;
   return (
     <Link
       href={item.href}
+      onClick={onClick}
       className={`
         flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm transition-all duration-200
         ${
@@ -54,11 +66,11 @@ function NavLink({ item, isActive }: { item: { label: string; href: string; icon
   );
 }
 
-export default function Sidebar() {
+function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname();
 
   return (
-    <aside className="fixed left-0 top-0 h-full w-64 bg-dark-800/80 backdrop-blur-md border-r border-neon-indigo/10 flex flex-col z-50">
+    <>
       {/* Logo */}
       <div className="p-5 border-b border-neon-indigo/10">
         <div className="flex items-center gap-3">
@@ -86,11 +98,10 @@ export default function Sidebar() {
       <nav className="flex-1 p-4 overflow-y-auto">
         <div className="space-y-1">
           {mainNav.map((item) => (
-            <NavLink key={item.href} item={item} isActive={pathname === item.href} />
+            <NavLink key={item.href} item={item} isActive={pathname === item.href} onClick={onNavigate} />
           ))}
         </div>
 
-        {/* Separator with label */}
         <div className="my-4 px-4">
           <div className="flex items-center gap-2">
             <span className="text-[10px] text-gray-600 uppercase tracking-wider whitespace-nowrap">学習＆AI</span>
@@ -100,12 +111,12 @@ export default function Sidebar() {
 
         <div className="space-y-1">
           {subNav.map((item) => (
-            <NavLink key={item.href} item={item} isActive={pathname === item.href} />
+            <NavLink key={item.href} item={item} isActive={pathname === item.href} onClick={onNavigate} />
           ))}
         </div>
       </nav>
 
-      {/* Platform Switcher (for future Threads support) */}
+      {/* Platform Switcher */}
       <div className="p-4 border-t border-neon-indigo/10">
         <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-dark-700/50">
           <div className="w-6 h-6 rounded-full bg-gradient-to-br from-neon-blue to-neon-purple flex items-center justify-center">
@@ -117,6 +128,43 @@ export default function Sidebar() {
           <span className="ml-auto text-[10px] text-gray-600">切替</span>
         </div>
       </div>
-    </aside>
+    </>
+  );
+}
+
+export default function Sidebar() {
+  const [mobileOpen, setMobileOpen] = useState(false);
+
+  return (
+    <>
+      {/* Mobile hamburger */}
+      <button
+        onClick={() => setMobileOpen(true)}
+        className="fixed top-4 left-4 z-50 p-2 rounded-xl bg-dark-800/90 backdrop-blur-sm border border-neon-indigo/20 lg:hidden"
+      >
+        <Menu className="w-5 h-5 text-white" />
+      </button>
+
+      {/* Desktop sidebar */}
+      <aside className="hidden lg:flex fixed left-0 top-0 h-full w-64 bg-dark-800/80 backdrop-blur-md border-r border-neon-indigo/10 flex-col z-50">
+        <SidebarContent />
+      </aside>
+
+      {/* Mobile overlay */}
+      {mobileOpen && (
+        <div className="fixed inset-0 z-50 lg:hidden">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setMobileOpen(false)} />
+          <aside className="relative w-64 h-full bg-dark-800 flex flex-col">
+            <button
+              onClick={() => setMobileOpen(false)}
+              className="absolute top-4 right-4 p-1 rounded-lg hover:bg-dark-600 transition-all"
+            >
+              <X className="w-5 h-5 text-gray-400" />
+            </button>
+            <SidebarContent onNavigate={() => setMobileOpen(false)} />
+          </aside>
+        </div>
+      )}
+    </>
   );
 }
