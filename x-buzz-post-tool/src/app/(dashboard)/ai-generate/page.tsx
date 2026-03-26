@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Sparkles, Loader2, Copy, Save } from "lucide-react";
+import { Sparkles, Loader2, Copy, Save, Trophy, Check, Star } from "lucide-react";
 import GlowCard from "@/components/ui/GlowCard";
 
 const toneOptions = ["問題提起型", "対比型", "体験談型", "箇条書き型", "結論先出し型", "煽りフック型", "教育スレッド型"];
@@ -12,6 +12,9 @@ interface GeneratedResult {
   body: string;
   cta: string;
   hashtags: string[];
+  recommended?: boolean;
+  score?: number;
+  reason?: string;
 }
 
 // Fallback dummy results (used when API is not configured)
@@ -49,6 +52,7 @@ export default function GeneratePage() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [results, setResults] = useState<GeneratedResult[]>([]);
   const [error, setError] = useState("");
+  const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
 
   const handleGenerate = async () => {
     setIsGenerating(true);
@@ -197,13 +201,44 @@ export default function GeneratePage() {
       {results.length > 0 && (
         <div className="space-y-4">
           <h2 className="text-lg font-semibold text-white">生成結果</h2>
-          {results.map((result, i) => (
-            <GlowCard key={i}>
+
+          {/* Sort: recommended first */}
+          {[...results].sort((a, b) => (b.recommended ? 1 : 0) - (a.recommended ? 1 : 0)).map((result, i) => (
+            <GlowCard key={i} className={result.recommended ? "ring-2 ring-yellow-400/50 shadow-[0_0_25px_rgba(250,204,21,0.15)]" : ""}>
+              {/* Recommended Badge */}
+              {result.recommended && (
+                <div className="flex items-center gap-2 mb-4 px-3 py-2 rounded-xl bg-yellow-400/10 border border-yellow-400/20">
+                  <Trophy className="w-4 h-4 text-yellow-400" />
+                  <span className="text-xs font-bold text-yellow-300">AIおすすめ</span>
+                  {result.score && (
+                    <span className="ml-auto flex items-center gap-1 text-xs text-yellow-400">
+                      <Star className="w-3 h-3 fill-yellow-400" /> {result.score}/10
+                    </span>
+                  )}
+                </div>
+              )}
+
               <div className="flex items-start justify-between mb-3">
-                <h3 className="text-sm font-semibold text-neon-indigo">{result.title}</h3>
+                <div className="flex items-center gap-2">
+                  <h3 className="text-sm font-semibold text-neon-indigo">{result.title}</h3>
+                  {!result.recommended && result.score && (
+                    <span className="flex items-center gap-1 text-[10px] text-gray-500">
+                      <Star className="w-3 h-3" /> {result.score}/10
+                    </span>
+                  )}
+                </div>
                 <div className="flex gap-2">
-                  <button className="p-2 rounded-lg bg-dark-800 hover:bg-dark-600 transition-all" title="コピー">
-                    <Copy className="w-4 h-4 text-gray-400" />
+                  <button
+                    onClick={async () => {
+                      const text = result.hook + "\n\n" + result.body + (result.cta ? "\n\n" + result.cta : "") + "\n\n" + result.hashtags.join(" ");
+                      await navigator.clipboard.writeText(text);
+                      setCopiedIndex(i);
+                      setTimeout(() => setCopiedIndex(null), 2000);
+                    }}
+                    className="p-2 rounded-lg bg-dark-800 hover:bg-dark-600 transition-all"
+                    title="コピー"
+                  >
+                    {copiedIndex === i ? <Check className="w-4 h-4 text-green-400" /> : <Copy className="w-4 h-4 text-gray-400" />}
                   </button>
                   <button className="p-2 rounded-lg bg-dark-800 hover:bg-dark-600 transition-all" title="保存">
                     <Save className="w-4 h-4 text-gray-400" />
@@ -222,6 +257,15 @@ export default function GeneratePage() {
                   ))}
                 </div>
               </div>
+
+              {/* Recommendation Reason */}
+              {result.recommended && result.reason && (
+                <div className="mt-4 pt-3 border-t border-yellow-400/10">
+                  <p className="text-xs text-yellow-300/80">
+                    <span className="font-semibold">おすすめ理由:</span> {result.reason}
+                  </p>
+                </div>
+              )}
             </GlowCard>
           ))}
         </div>
