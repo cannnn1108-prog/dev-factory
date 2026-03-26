@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Sparkles, Loader2, Copy, Save, Trophy, Check, Star, Send, Calendar } from "lucide-react";
 import GlowCard from "@/components/ui/GlowCard";
+import { useProfile } from "@/lib/profile-context";
 
 const toneOptions = ["問題提起型", "対比型", "体験談型", "箇条書き型", "結論先出し型", "煽りフック型", "教育スレッド型"];
 
@@ -18,7 +19,6 @@ interface GeneratedResult {
   reason?: string;
 }
 
-// Fallback dummy results (used when API is not configured)
 const dummyResults: GeneratedResult[] = [
   {
     title: "案1: 体験ベース",
@@ -54,18 +54,17 @@ function buildPostText(result: GeneratedResult): string {
   );
 }
 
-// Save post to localStorage
 function savePost(text: string) {
   const saved = JSON.parse(localStorage.getItem("buzz_saved_posts") || "[]");
   const post = { id: Date.now().toString(), content: text, savedAt: new Date().toISOString() };
   saved.unshift(post);
-  // Keep max 50
   if (saved.length > 50) saved.length = 50;
   localStorage.setItem("buzz_saved_posts", JSON.stringify(saved));
 }
 
 export default function GeneratePage() {
   const router = useRouter();
+  const { profileId } = useProfile();
   const [theme, setTheme] = useState("");
   const [target, setTarget] = useState("");
   const [goal, setGoal] = useState("");
@@ -87,7 +86,7 @@ export default function GeneratePage() {
       const res = await fetch("/api/post-to-x", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ content: text.slice(0, 280) }),
+        body: JSON.stringify({ content: text.slice(0, 280), profileId }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -151,7 +150,6 @@ export default function GeneratePage() {
         <p className="text-sm text-gray-400 mt-1">テーマを入力して、バズる投稿を3パターン生成</p>
       </div>
 
-      {/* Input Form */}
       <GlowCard>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="space-y-4">
@@ -251,14 +249,12 @@ export default function GeneratePage() {
         </button>
       </GlowCard>
 
-      {/* Error/Info Message */}
       {error && (
         <div className="px-4 py-3 rounded-xl bg-yellow-500/10 border border-yellow-500/20 text-sm text-yellow-300">
           {error}
         </div>
       )}
 
-      {/* Results */}
       {results.length > 0 && (
         <div className="space-y-4">
           <h2 className="text-lg font-semibold text-white">生成結果</h2>
@@ -269,7 +265,6 @@ export default function GeneratePage() {
                 key={i}
                 className={result.recommended ? "ring-2 ring-yellow-400/50 shadow-[0_0_25px_rgba(250,204,21,0.15)]" : ""}
               >
-                {/* Recommended Badge */}
                 {result.recommended && (
                   <div className="flex items-center gap-2 mb-4 px-3 py-2 rounded-xl bg-yellow-400/10 border border-yellow-400/20">
                     <Trophy className="w-4 h-4 text-yellow-400" />
@@ -358,7 +353,6 @@ export default function GeneratePage() {
                   </div>
                 </div>
 
-                {/* Recommendation Reason */}
                 {result.recommended && result.reason && (
                   <div className="mt-4 pt-3 border-t border-yellow-400/10">
                     <p className="text-xs text-yellow-300/80">
