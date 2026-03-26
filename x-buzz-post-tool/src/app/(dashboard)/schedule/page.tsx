@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
-import { Calendar, Clock, Edit3, Trash2, Plus, X, Loader2, Send, RefreshCw, AlertCircle } from "lucide-react";
+import { Calendar, Clock, Edit3, Trash2, Plus, X, Loader2, Send, RefreshCw, AlertCircle, Save, ChevronDown, ChevronUp } from "lucide-react";
 import GlowCard from "@/components/ui/GlowCard";
 import { useProfile } from "@/lib/profile-context";
 import { fetchScheduledPosts, createScheduledPost, updateScheduledPost, deleteScheduledPost } from "@/lib/db";
@@ -31,6 +31,12 @@ interface Post {
   created_at: string;
 }
 
+interface SavedPost {
+  id: string;
+  content: string;
+  savedAt: string;
+}
+
 // Get current JST date/time parts
 function getJSTNow() {
   const now = new Date(Date.now() + 9 * 60 * 60 * 1000);
@@ -52,12 +58,32 @@ export default function SchedulePage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [postingId, setPostingId] = useState<string | null>(null);
 
+  // Saved posts
+  const [savedPosts, setSavedPosts] = useState<SavedPost[]>([]);
+  const [showSaved, setShowSaved] = useState(false);
+
   // Date/time picker state (JST)
   const [selYear, setSelYear] = useState("");
   const [selMonth, setSelMonth] = useState("");
   const [selDay, setSelDay] = useState("");
   const [selHour, setSelHour] = useState("");
   const [selMinute, setSelMinute] = useState("");
+
+  // Load saved posts from localStorage
+  useEffect(() => {
+    const saved = JSON.parse(localStorage.getItem("buzz_saved_posts") || "[]");
+    setSavedPosts(saved);
+  }, []);
+
+  // Check for draft content from other pages (ai-generate, generate)
+  useEffect(() => {
+    const draft = localStorage.getItem("buzz_schedule_draft");
+    if (draft) {
+      setNewContent(draft);
+      setShowForm(true);
+      localStorage.removeItem("buzz_schedule_draft");
+    }
+  }, []);
 
   // Initialize with current JST time when form opens
   useEffect(() => {
@@ -88,10 +114,21 @@ export default function SchedulePage() {
     loadPosts();
   }, [loadPosts]);
 
+  const handleSelectSaved = (post: SavedPost) => {
+    setNewContent(post.content);
+    setShowForm(true);
+    setShowSaved(false);
+  };
+
+  const handleDeleteSaved = (id: string) => {
+    const updated = savedPosts.filter((p) => p.id !== id);
+    setSavedPosts(updated);
+    localStorage.setItem("buzz_saved_posts", JSON.stringify(updated));
+  };
+
   const handleAdd = async () => {
     if (!newContent.trim() || !profileId) return;
     try {
-      // Build JST date string and convert to UTC ISO
       const hasDate = selYear && selMonth && selDay && selHour && selMinute;
       const status = hasDate ? "scheduled" : "draft";
       let scheduledAt = new Date().toISOString();
@@ -100,7 +137,6 @@ export default function SchedulePage() {
           Number(selYear), Number(selMonth) - 1, Number(selDay),
           Number(selHour), Number(selMinute), 0
         );
-        // Convert JST to UTC by subtracting 9 hours
         scheduledAt = new Date(jstDate.getTime() - 9 * 60 * 60 * 1000).toISOString();
       }
       const created = await createScheduledPost(profileId, newContent.trim(), scheduledAt, status);
@@ -142,7 +178,6 @@ export default function SchedulePage() {
     }
   };
 
-  // Post immediately
   const handlePostNow = async (post: Post) => {
     setPostingId(post.id);
     try {
@@ -167,7 +202,6 @@ export default function SchedulePage() {
     }
   };
 
-  // Retry failed post
   const handleRetry = async (post: Post) => {
     await updateScheduledPost(post.id, { status: "scheduled", error_message: null });
     setPosts((prev) => prev.map((p) => (p.id === post.id ? { ...p, status: "scheduled", error_message: null } : p)));
@@ -214,6 +248,44 @@ export default function SchedulePage() {
         <GlowCard>
           <h2 className="text-sm font-semibold text-white mb-4">新しい予約投稿</h2>
           <div className="space-y-4">
+            {/* Saved posts picker */}
+            {savedPosts.length > 0 && (
+              <div>
+                <button
+                  onClick={() => setShowSaved(!showSaved)}
+                  className="flex items-center gap-2 text-xs text-neon-purple hover:text-neon-purple/80 transition-all"
+                >
+                  <Save className="w-3 h-3" />
+                  保存済み投稿から選ぶ ({savedPosts.length}件)
+                  {showSaved ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                </button>
+                {showSaved && (
+                  <div className="mt-2 space-y-2 max-h-60 overflow-y-auto">
+                    {savedPosts.map((sp) => (
+                      <div
+                        key={sp.id}
+                        className="flex items-start gap-2 p-3 rounded-lg bg-dark-800 border border-neon-indigo/10 hover:border-neon-purple/30 transition-all"
+                      >
+                        <button
+                          onClick={() => handleSelectSaved(sp)}
+                          className="flex-1 text-left text-xs text-gray-300 line-clamp-2 hover:text-white transition-all"
+                        >
+                          {sp.content.slice(0, 100)}{sp.content.length > 100 ? "..." : ""}
+                        </button>
+                        <button
+                          onClick={() => handleDeleteSaved(sp.id)}
+                          className="p-1 rounded hover:bg-red-900/30 transition-all shrink-0"
+                          title="削除"
+                        >
+                          <Trash2 className="w-3 h-3 text-gray-500 hover:text-red-400" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
             <div className="relative">
               <textarea
                 value={newContent}
@@ -296,7 +368,6 @@ export default function SchedulePage() {
                   <p className="text-sm text-gray-200 leading-relaxed">{post.content}</p>
                 )}
 
-                {/* Error message */}
                 {post.status === "failed" && post.error_message && (
                   <div className="flex items-center gap-2 mt-2 text-xs text-red-400">
                     <AlertCircle className="w-3 h-3" />
@@ -329,7 +400,6 @@ export default function SchedulePage() {
               </div>
 
               <div className="flex gap-2 shrink-0">
-                {/* Post now button */}
                 {(post.status === "draft" || post.status === "scheduled") && (
                   <button
                     onClick={() => handlePostNow(post)}
@@ -344,7 +414,6 @@ export default function SchedulePage() {
                     )}
                   </button>
                 )}
-                {/* Retry button */}
                 {post.status === "failed" && (
                   <button
                     onClick={() => handleRetry(post)}
