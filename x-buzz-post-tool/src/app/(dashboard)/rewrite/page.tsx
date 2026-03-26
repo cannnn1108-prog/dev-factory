@@ -10,18 +10,32 @@ export default function RewritePage() {
   const [isRewriting, setIsRewriting] = useState(false);
   const [result, setResult] = useState("");
 
-  const handleRewrite = () => {
+  const dummyResult =
+    "AIツールの使い方で、成果が10倍変わる事実を知っていますか？\n\n" +
+    "「いい感じにして」→ 微妙な結果\n" +
+    "「背景は黒、カードに青紫発光ボーダー」→ 完璧\n\n" +
+    "違いはたった1つ。指示の具体性です。\n\n" +
+    "抽象的な指示は、抽象的な結果しか返しません。\n今日から「具体語」で伝えてみてください。";
+
+  const handleRewrite = async () => {
     setIsRewriting(true);
-    setTimeout(() => {
-      setResult(
-        "AIツールの使い方で、成果が10倍変わる事実を知っていますか？\n\n" +
-        "「いい感じにして」→ 微妙な結果\n" +
-        "「背景は黒、カードに青紫発光ボーダー」→ 完璧\n\n" +
-        "違いはたった1つ。指示の具体性です。\n\n" +
-        "抽象的な指示は、抽象的な結果しか返しません。\n今日から「具体語」で伝えてみてください。"
-      );
+    try {
+      const res = await fetch("/api/rewrite", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ original, instruction, platform: "x" }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setResult(dummyResult);
+      } else {
+        setResult(data.result);
+      }
+    } catch {
+      setResult(dummyResult);
+    } finally {
       setIsRewriting(false);
-    }, 1500);
+    }
   };
 
   return (

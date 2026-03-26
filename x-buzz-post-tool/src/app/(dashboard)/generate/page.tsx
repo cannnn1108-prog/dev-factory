@@ -14,6 +14,7 @@ interface GeneratedResult {
   hashtags: string[];
 }
 
+// Fallback dummy results (used when API is not configured)
 const dummyResults: GeneratedResult[] = [
   {
     title: "案1: 体験ベース",
@@ -47,13 +48,36 @@ export default function GeneratePage() {
   const [hasCta, setHasCta] = useState(true);
   const [isGenerating, setIsGenerating] = useState(false);
   const [results, setResults] = useState<GeneratedResult[]>([]);
+  const [error, setError] = useState("");
 
-  const handleGenerate = () => {
+  const handleGenerate = async () => {
     setIsGenerating(true);
-    setTimeout(() => {
+    setError("");
+    try {
+      const res = await fetch("/api/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ theme, target, goal, tone, charLimit: Number(charLimit), hasCta, platform: "x" }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        // Fallback to dummy data if API key is not set
+        if (res.status === 500 && data.error?.includes("ANTHROPIC_API_KEY")) {
+          setResults(dummyResults);
+          setError("APIキー未設定のためダミーデータを表示しています。設定画面からAPIキーを登録してください。");
+        } else {
+          setError(data.error || "生成に失敗しました");
+        }
+      } else {
+        setResults(data.results);
+      }
+    } catch {
+      // Network error fallback
       setResults(dummyResults);
+      setError("API接続エラー: ダミーデータを表示しています。");
+    } finally {
       setIsGenerating(false);
-    }, 2000);
+    }
   };
 
   return (
@@ -161,6 +185,13 @@ export default function GeneratePage() {
           )}
         </button>
       </GlowCard>
+
+      {/* Error/Info Message */}
+      {error && (
+        <div className="px-4 py-3 rounded-xl bg-yellow-500/10 border border-yellow-500/20 text-sm text-yellow-300">
+          {error}
+        </div>
+      )}
 
       {/* Results */}
       {results.length > 0 && (
