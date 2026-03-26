@@ -18,7 +18,9 @@ import {
   AlertCircle,
   Menu,
   X,
+  LogOut,
 } from "lucide-react";
+import { useProfile } from "@/lib/profile-context";
 
 const mainNav = [
   { label: "ダッシュボード", href: "/", icon: LayoutDashboard },
@@ -68,6 +70,7 @@ function NavLink({
 
 function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname();
+  const { userEmail, signOut } = useProfile();
 
   return (
     <>
@@ -87,11 +90,22 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
 
       {/* Account Status */}
       <div className="px-5 py-3 border-b border-neon-indigo/10">
-        <div className="flex items-center gap-2 text-xs text-yellow-400/80">
-          <AlertCircle className="w-3.5 h-3.5" />
-          <span>アカウント未登録</span>
-        </div>
-        <p className="text-[10px] text-gray-600 mt-0.5 ml-5">クリックして切り替え</p>
+        {userEmail ? (
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs text-gray-300 truncate max-w-[160px]">{userEmail}</p>
+              <p className="text-[10px] text-gray-600">ログイン中</p>
+            </div>
+            <button onClick={signOut} className="p-1.5 rounded-lg hover:bg-dark-600 transition-all" title="ログアウト">
+              <LogOut className="w-3.5 h-3.5 text-gray-500" />
+            </button>
+          </div>
+        ) : (
+          <div className="flex items-center gap-2 text-xs text-yellow-400/80">
+            <AlertCircle className="w-3.5 h-3.5" />
+            <span>未ログイン</span>
+          </div>
+        )}
       </div>
 
       {/* Navigation */}
