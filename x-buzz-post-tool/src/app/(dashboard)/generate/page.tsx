@@ -1,13 +1,16 @@
 "use client";
 
 import { useState } from "react";
-import { Send, Hash, Image, Clock, Copy, Check } from "lucide-react";
+import { Send, Hash, Image, Clock, Copy, Check, Loader2 } from "lucide-react";
 import GlowCard from "@/components/ui/GlowCard";
 
 export default function PostCreatePage() {
   const [content, setContent] = useState("");
   const [hashtags, setHashtags] = useState("");
   const [copied, setCopied] = useState(false);
+  const [posting, setPosting] = useState(false);
+  const [posted, setPosted] = useState(false);
+  const [postError, setPostError] = useState("");
   const charLimit = 280;
   const remaining = charLimit - content.length;
 
@@ -114,14 +117,44 @@ export default function PostCreatePage() {
               下書き保存
             </button>
             <button
-              disabled={!content || remaining < 0}
+              disabled={!content || remaining < 0 || posting}
+              onClick={async () => {
+                setPosting(true);
+                setPostError("");
+                try {
+                  const fullText = (content + (hashtags ? "\n\n" + hashtags : "")).slice(0, 280);
+                  const res = await fetch("/api/post-to-x", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ content: fullText }),
+                  });
+                  const data = await res.json();
+                  if (!res.ok) {
+                    setPostError(data.error || "投稿に失敗しました");
+                  } else {
+                    setPosted(true);
+                    setContent("");
+                    setHashtags("");
+                    setTimeout(() => setPosted(false), 5000);
+                  }
+                } catch { setPostError("X投稿に失敗しました"); }
+                finally { setPosting(false); }
+              }}
               className="flex items-center gap-2 px-5 py-2 rounded-xl bg-gradient-to-r from-neon-blue to-neon-purple text-white text-sm font-medium hover:shadow-neon-glow transition-all disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              <Send className="w-4 h-4" /> 投稿する
+              {posting ? <Loader2 className="w-4 h-4 animate-spin" /> : posted ? <Check className="w-4 h-4" /> : <Send className="w-4 h-4" />}
+              {posting ? "投稿中..." : posted ? "投稿完了!" : "Xに投稿"}
             </button>
           </div>
         </div>
       </GlowCard>
+
+      {/* Post Error */}
+      {postError && (
+        <div className="px-4 py-3 rounded-xl bg-red-500/10 border border-red-500/20 text-sm text-red-400">
+          {postError}
+        </div>
+      )}
 
       {/* Preview */}
       {content && (

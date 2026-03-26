@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Sparkles, Loader2, Copy, Save, Trophy, Check, Star } from "lucide-react";
+import { Sparkles, Loader2, Copy, Save, Trophy, Check, Star, Send } from "lucide-react";
 import GlowCard from "@/components/ui/GlowCard";
 
 const toneOptions = ["問題提起型", "対比型", "体験談型", "箇条書き型", "結論先出し型", "煽りフック型", "教育スレッド型"];
@@ -53,6 +53,31 @@ export default function GeneratePage() {
   const [results, setResults] = useState<GeneratedResult[]>([]);
   const [error, setError] = useState("");
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
+  const [postingIndex, setPostingIndex] = useState<number | null>(null);
+  const [postedIndex, setPostedIndex] = useState<number | null>(null);
+
+  const handlePostToX = async (result: GeneratedResult, index: number) => {
+    setPostingIndex(index);
+    try {
+      const text = result.hook + "\n\n" + result.body + (result.cta ? "\n\n" + result.cta : "") + "\n\n" + result.hashtags.join(" ");
+      const res = await fetch("/api/post-to-x", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content: text.slice(0, 280) }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error || "投稿に失敗しました");
+      } else {
+        setPostedIndex(index);
+        setTimeout(() => setPostedIndex(null), 5000);
+      }
+    } catch {
+      setError("X投稿に失敗しました");
+    } finally {
+      setPostingIndex(null);
+    }
+  };
 
   const handleGenerate = async () => {
     setIsGenerating(true);
@@ -242,6 +267,20 @@ export default function GeneratePage() {
                   </button>
                   <button className="p-2 rounded-lg bg-dark-800 hover:bg-dark-600 transition-all" title="保存">
                     <Save className="w-4 h-4 text-gray-400" />
+                  </button>
+                  <button
+                    onClick={() => handlePostToX(result, i)}
+                    disabled={postingIndex === i}
+                    className="p-2 rounded-lg bg-neon-blue/20 hover:bg-neon-blue/30 transition-all"
+                    title="Xに投稿"
+                  >
+                    {postingIndex === i ? (
+                      <Loader2 className="w-4 h-4 text-neon-blue animate-spin" />
+                    ) : postedIndex === i ? (
+                      <Check className="w-4 h-4 text-green-400" />
+                    ) : (
+                      <Send className="w-4 h-4 text-neon-blue" />
+                    )}
                   </button>
                 </div>
               </div>
