@@ -19,7 +19,6 @@ export async function GET(req: NextRequest) {
   }
 
   const supabase = createClient(supabaseUrl, supabaseServiceKey);
-
   const now = new Date().toISOString();
 
   // Fetch scheduled posts that are due
@@ -40,21 +39,14 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ message: "No posts due", count: 0 });
   }
 
-  const apiKey = process.env.X_API_KEY;
-  const apiSecret = process.env.X_API_SECRET;
-  const accessToken = process.env.X_ACCESS_TOKEN;
-  const accessSecret = process.env.X_ACCESS_TOKEN_SECRET;
+  // Fallback env credentials
+  const envApiKey = process.env.X_API_KEY;
+  const envApiSecret = process.env.X_API_SECRET;
+  const envAccessToken = process.env.X_ACCESS_TOKEN;
+  const envAccessSecret = process.env.X_ACCESS_TOKEN_SECRET;
 
-  if (!apiKey || !apiSecret || !accessToken || !accessSecret) {
-    return NextResponse.json({ error: "X API not configured" }, { status: 500 });
-  }
-
-  const client = new TwitterApi({
-    appKey: apiKey,
-    appSecret: apiSecret,
-    accessToken: accessToken,
-    accessSecret: accessSecret,
-  });
+  // Cache profile credentials to avoid repeated DB lookups
+  const profileCredentials: Record<string, { apiKey: string; apiSecret: string; accessToken: string; accessSecret: string } | null> = {};
 
   const results: { id: string; status: string; error?: string }[] = [];
 
@@ -66,6 +58,43 @@ export async function GET(req: NextRequest) {
       .eq("id", post.id);
 
     try {
+      // Get credentials for this post's profile
+      let apiKey = envApiKey;
+      let apiSecret = envApiSecret;
+      let accessToken = envAccessToken;
+      let accessSecret = envAccessSecret;
+
+      if (post.profile_id) {
+        if (!(post.profile_id in profileCredentials)) {
+          const { data: profile } = await supabase
+            .from("profiles")
+            .select("x_api_key, x_api_secret, x_access_token, x_access_token_secret")
+            .eq("id", post.profile_id)
+            .single();
+          profileCredentials[post.profile_id] = profile?.x_api_key
+            ? { apiKey: profile.x_api_key, apiSecret: profile.x_api_secret, accessToken: profile.x_access_token, accessSecret: profile.x_access_token_secret }
+            : null;
+        }
+        const creds = profileCredentials[post.profile_id];
+        if (creds) {
+          apiKey = creds.apiKey;
+          apiSecret = creds.apiSecret;
+          accessToken = creds.accessToken;
+          accessSecret = creds.accessSecret;
+        }
+      }
+
+      if (!apiKey || !apiSecret || !accessToken || !accessSecret) {
+        throw new Error("X API credentials not found for this profile");
+      }
+
+      const client = new TwitterApi({
+        appKey: apiKey,
+        appSecret: apiSecret,
+        accessToken: accessToken,
+        accessSecret: accessSecret,
+      });
+
       const tweetContent = post.content.slice(0, 280);
       const result = await client.v2.tweet(tweetContent);
 
